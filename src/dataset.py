@@ -78,13 +78,42 @@ class CorneilleDataset(Dataset):
         processed_tokens = []
         current_speaker = None
         in_speech = False
+        in_act = False
+        in_scene = False
+        
+        # Add patterns for act and scene detection
+        ACT_PATTERN = r'^ACTE\s+([IVX]+)'    # Matches: ACTE I, ACTE II, etc.
+        SCENE_PATTERN = r'^SCÈNE\s+([IVX]+)'  # Matches: SCÈNE I, SCÈNE II, etc.
         
         for line in lines:
             if not line.strip():  # Skip empty lines
                 continue
+            
+            cleaned_line = line.strip()
+            
+            # Check for act boundary
+            act_match = re.match(ACT_PATTERN, cleaned_line)
+            if act_match:
+                if in_scene:
+                    processed_tokens.append('</SCENE>')
+                    in_scene = False
+                if in_act:
+                    processed_tokens.append('</ACT>')
+                processed_tokens.extend(['<ACT>', f"ACTE_{act_match.group(1)}"])
+                in_act = True
+                continue
+                
+            # Check for scene boundary
+            scene_match = re.match(SCENE_PATTERN, cleaned_line)
+            if scene_match:
+                if in_scene:
+                    processed_tokens.append('</SCENE>')
+                processed_tokens.extend(['<SCENE>', f"SCENE_{scene_match.group(1)}"])
+                in_scene = True
+                continue
                 
             # Check for character name
-            char_match = re.match(self.CHAR_PATTERN, line.strip())
+            char_match = re.match(self.CHAR_PATTERN, cleaned_line)
             if char_match:
                 if in_speech:
                     processed_tokens.append('</CHAR>')
@@ -94,15 +123,19 @@ class CorneilleDataset(Dataset):
                 continue
                 
             # Process regular line
-            cleaned_line = line.strip()
             if cleaned_line:
                 processed_tokens.append('<LINE>')
                 processed_tokens.extend(cleaned_line.split())
                 processed_tokens.append('</LINE>')
         
+        # Close any open tags
         if in_speech:
             processed_tokens.append('</CHAR>')
-            
+        if in_scene:
+            processed_tokens.append('</SCENE>')
+        if in_act:
+            processed_tokens.append('</ACT>')
+        
         return processed_tokens
     
     def _create_sequences(self) -> list:

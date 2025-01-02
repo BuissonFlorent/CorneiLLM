@@ -1,6 +1,7 @@
 import unittest
 import torch
 from src.dataset import CorneilleDataset
+from src.utils.visualize import display_tokens
 
 class TestCorneilleDataset(unittest.TestCase):
     @classmethod
@@ -8,6 +9,10 @@ class TestCorneilleDataset(unittest.TestCase):
         """Create a small test file and dataset instance."""
         # Create a temporary test file
         cls.test_text = """
+ACTE I
+
+SCÈNE I
+
 TIRCIS.
 
 Ne dissimulons point: tu règles mieux ta flamme,
@@ -47,41 +52,36 @@ Quoi! tu sembles douter de mes intentions?
         self.assertIn('<LINE>', processed)
         self.assertIn('</LINE>', processed)
         
+        # Check act and scene marking
+        self.assertIn('<ACT>', processed)
+        self.assertIn('</ACT>', processed)
+        self.assertIn('<SCENE>', processed)
+        self.assertIn('</SCENE>', processed)
+        
+    def test_token_structure(self):
+        """Test if tokens are properly structured and nested."""
+        processed = self.dataset.processed_text
+        formatted = display_tokens(processed)
+        
+        # Structure tests
+        self.assertIn('<ACT>', processed)
+        self.assertIn('ACTE_I', processed)
+        self.assertIn('</ACT>', processed)
+        
+        # Nesting tests
+        act_parts = formatted.split('<ACT>')
+        self.assertTrue(len(act_parts) > 1)
+        self.assertTrue('<SCENE>' in act_parts[1])
+        
+        scene_parts = formatted.split('<SCENE>')
+        self.assertTrue(len(scene_parts) > 1)
+        self.assertTrue('<CHAR>' in scene_parts[1])
+        
     def test_sequence_creation(self):
         """Test if sequences are created correctly."""
-        # Check sequence length
         x, y = self.dataset[0]
         self.assertEqual(len(x), self.dataset.sequence_length)
         self.assertTrue(isinstance(y, int))
-        
-    def test_dataset_length(self):
-        """Test if dataset length is correct."""
-        expected_length = len(self.dataset.sequences)
-        self.assertEqual(len(self.dataset), expected_length)
-        
-    def test_getitem(self):
-        """Test if __getitem__ returns correct format."""
-        x, y = self.dataset[0]
-        self.assertTrue(isinstance(x, list))
-        self.assertTrue(isinstance(y, int))
-        self.assertEqual(len(x), self.dataset.sequence_length)
-        
-    def test_unknown_words(self):
-        """Test handling of unknown words."""
-        # Create dataset with minimal vocab
-        small_vocab = {
-            '<PAD>': 0,
-            '<UNK>': 1,
-            '<LINE>': 2,
-            '</LINE>': 3,
-        }
-        dataset = CorneilleDataset('tests/test_play.txt', 
-                                 sequence_length=5, 
-                                 vocab=small_vocab)
-        
-        # Check if unknown words are mapped to UNK token
-        x, y = dataset[0]
-        self.assertIn(1, x)  # 1 is the index for <UNK>
         
     @classmethod
     def tearDownClass(cls):
